@@ -4,10 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/monkeyWie/gopeed/internal/fetcher"
-	"github.com/monkeyWie/gopeed/pkg/base"
-	"github.com/monkeyWie/gopeed/pkg/util"
-	"golang.org/x/sync/errgroup"
 	"io"
 	"mime"
 	"net/http"
@@ -19,6 +15,11 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/monkeyWie/gopeed/internal/fetcher"
+	"github.com/monkeyWie/gopeed/pkg/base"
+	"github.com/monkeyWie/gopeed/pkg/util"
+	"golang.org/x/sync/errgroup"
 )
 
 type RequestError struct {
@@ -101,6 +102,12 @@ func (f *Fetcher) Resolve(req *base.Request) (*base.Resource, error) {
 		filename := params["filePath"]
 		if filename != "" {
 			file.Name = filename
+		}
+		// Prevent path traversal
+
+		// from filename
+		if !strings.Contains(params["filename"], "..") && !strings.Contains(params["filename"], "/") && !strings.Contains(params["filename"], "\\") {
+			file.Name = params["filename"]
 		}
 	}
 	// Get file filePath by URL
@@ -348,10 +355,16 @@ func buildRequest(ctx context.Context, req *base.Request) (httpReq *http.Request
 		body   io.Reader
 	)
 	headers := make(map[string][]string)
+
 	if req.Extra == nil {
 		method = http.MethodGet
 	} else {
-		extra := req.Extra.(extra)
+		extra, ok := req.Extra.(extra)
+		if !ok {
+			extraMap := req.Extra.(map[string]interface{})
+			extra.Header = extraMap["Header"].(map[string]string)
+		}
+
 		if extra.Method != "" {
 			method = extra.Method
 		} else {
